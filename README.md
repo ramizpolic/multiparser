@@ -2,7 +2,7 @@
 Parse raw data into concrete types unburdened by serialization standards. 
 
 ### Example usage
-Current example uses JSON and YAML multiparser.
+Current multiparser example uses JSON and YAML parsers.
 ```go
 package main
 
