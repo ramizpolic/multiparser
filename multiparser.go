@@ -2,46 +2,53 @@ package multiparser
 
 import (
 	"errors"
+	"reflect"
 	"sync"
 )
 
-var _ Converter = &multiconverter{}
-
 var (
-	ErrMarshal   = errors.New("no Marshaller could convert data")
-	ErrUnmarshal = errors.New("no Unmarshaller could convert data")
+	ErrMarshal       = errors.New("no Marshaller could convert data")
+	ErrUnmarshal     = errors.New("no Unmarshaller could convert data")
+	ErrInvalidObject = errors.New("object must be an initialized pointer")
 )
 
 type multiconverter struct {
 	converters []Converter
 }
 
-func (m *multiconverter) Marshal(object interface{}) ([]byte, error) {
-	resultCh := make(chan []byte, len(m.converters))
+func New(converters ...Converter) Converter {
+	return &multiconverter{
+		converters: converters,
+	}
+}
 
-	// try every Marshaller concurrently, if it succeeds, that's our result
+func (m *multiconverter) Marshal(object interface{}) ([]byte, error) {
+	mu := sync.Mutex{}
+	wg := sync.WaitGroup{}
+
+	// Try every Marshaller concurrently, if it succeeds, that's our result
+	var result []byte
 	for _, conv := range m.converters {
+		wg.Add(1)
 		go func(conv Converter) {
+			defer wg.Done()
+
+			// Marshal
 			data, err := conv.Marshal(object)
-			if err != nil {
-				resultCh <- nil
-				return
+			if err == nil {
+				mu.Lock()
+				if result == nil {
+					result = data
+				}
+				mu.Unlock()
 			}
-			resultCh <- data
 		}(conv)
 	}
 
-	// get the result
-	var result []byte
-	for i := 0; i < len(m.converters); i++ {
-		data := <-resultCh
-		if data != nil {
-			result = data
-			break
-		}
-	}
+	// Wait
+	wg.Wait()
 
-	// check
+	// Check
 	if result == nil {
 		return nil, ErrMarshal
 	}
@@ -49,35 +56,43 @@ func (m *multiconverter) Marshal(object interface{}) ([]byte, error) {
 }
 
 func (m *multiconverter) Unmarshal(from []byte, to interface{}) error {
-	var result interface{}
 	mu := sync.Mutex{}
 	wg := sync.WaitGroup{}
 
-	// try every Unmarshaller concurrently, if it succeeds, that's our result
+	// Validate
+	if rv := reflect.ValueOf(to); to == nil || rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return ErrInvalidObject
+	}
+
+	// Try every Unmarshaller concurrently, if it succeeds, that's our result
+	var resultPtr interface{}
 	for _, conv := range m.converters {
 		wg.Add(1)
 		go func(conv Converter) {
 			defer wg.Done()
 
-			var copyObj interface{}
-			if conv.Unmarshal(from, &copyObj) == nil {
+			// Unmarshal
+			fromPtr := reflect.New(reflect.TypeOf(to).Elem()).Interface()
+			if conv.Unmarshal(from, fromPtr) == nil {
 				mu.Lock()
-				result = copyObj
+				if resultPtr == nil {
+					resultPtr = fromPtr
+				}
 				mu.Unlock()
 			}
 		}(conv)
 	}
 
+	// Wait
 	wg.Wait()
-	if result == nil {
+
+	// Check
+	if resultPtr == nil {
 		return ErrUnmarshal
 	}
-	to = result
-	return nil
-}
 
-func New(converters ...Converter) Converter {
-	return &multiconverter{
-		converters: converters,
-	}
+	// Update
+	reflect.ValueOf(to).Elem().Set(reflect.ValueOf(resultPtr).Elem())
+
+	return nil
 }
