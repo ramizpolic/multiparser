@@ -2,8 +2,8 @@ package multiparser
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
-	"sync"
 )
 
 // Parser implements raw data to object deserialization.
@@ -13,7 +13,6 @@ type Parser interface {
 
 var (
 	ErrEmptyParsers  = errors.New("no Parser passed, at least one required")
-	ErrParse         = errors.New("no Parser could convert data")
 	ErrInvalidObject = errors.New("object must be non-nil pointer")
 )
 
@@ -33,43 +32,25 @@ func New(parsers ...Parser) (Parser, error) {
 }
 
 func (m *multiParser) Parse(from []byte, to interface{}) error {
-	mu := sync.Mutex{}
-	wg := sync.WaitGroup{}
-
 	// Validate
 	if rv := reflect.ValueOf(to); to == nil || rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return ErrInvalidObject
 	}
 
-	// Try every Parser concurrently, if it succeeds, that's our result
-	var resultPtr interface{}
+	// Try every Parser, if any of them succeeds, that's our result.
+	// The assumption is that Parsing will fail fast.
+	var err error
 	for _, parser := range m.parsers {
-		wg.Add(1)
-		go func(parser Parser) {
-			defer wg.Done()
-
-			// Parse
-			fromPtr := reflect.New(reflect.TypeOf(to).Elem()).Interface()
-			if parser.Parse(from, fromPtr) == nil {
-				mu.Lock()
-				if resultPtr == nil {
-					resultPtr = fromPtr
-				}
-				mu.Unlock()
-			}
-		}(parser)
+		fromPtr := reflect.New(reflect.TypeOf(to).Elem()).Interface()
+		parseErr := parser.Parse(from, fromPtr)
+		if parseErr == nil {
+			// Update result
+			reflect.ValueOf(to).Elem().Set(reflect.ValueOf(fromPtr).Elem())
+			return nil
+		} else {
+			err = fmt.Errorf("parsing failed for %T: %w", parser, parseErr)
+		}
 	}
 
-	// Wait
-	wg.Wait()
-
-	// Check
-	if resultPtr == nil {
-		return ErrParse
-	}
-
-	// Update
-	reflect.ValueOf(to).Elem().Set(reflect.ValueOf(resultPtr).Elem())
-
-	return nil
+	return err
 }
