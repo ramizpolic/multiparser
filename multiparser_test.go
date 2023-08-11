@@ -12,16 +12,12 @@ type objType struct {
 	Data string `json:"data" yaml:"data"`
 }
 
-var (
-	parsers = []multiparser.Parser{
-		parser.JSON,
-		parser.YAML,
-	}
-	defaultObj    = objType{Data: "data"}
-	defaultObjPtr = &defaultObj
-)
+var parsers = []multiparser.Parser{
+	parser.JSON,
+	parser.YAML,
+}
 
-func TestUnmarshal(t *testing.T) {
+func TestParse(t *testing.T) {
 	parser, _ := multiparser.New(parsers...)
 	for _, tt := range []struct {
 		name     string
@@ -41,7 +37,7 @@ func TestUnmarshal(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var got objType
-			_ = parser.Unmarshal([]byte(tt.inputRaw), &got)
+			_ = parser.Parse([]byte(tt.inputRaw), &got)
 			assert.Equal(t, tt.expected, got)
 		})
 	}
@@ -52,7 +48,7 @@ func TestAll(t *testing.T) {
 		name      string
 		parsers   []multiparser.Parser
 		parserErr error
-		input     interface{}
+		input     string
 		inputErr  error
 		outputPtr interface{}
 		outputErr error
@@ -62,19 +58,25 @@ func TestAll(t *testing.T) {
 			parserErr: multiparser.ErrEmptyParsers,
 		},
 		{
-			name:      "all-prs",
+			name:      "all-prs-json",
 			parsers:   parsers,
-			input:     defaultObj,
-			outputPtr: defaultObjPtr,
+			input:     `{"data": "data"}`,
+			outputPtr: &objType{Data: "data"},
+		},
+		{
+			name:      "all-prs-yaml",
+			parsers:   parsers,
+			input:     `data: data`,
+			outputPtr: &objType{Data: "data"},
 		},
 		{
 			name:      "all-prs-duplicate",
 			parsers:   []multiparser.Parser{parser.JSON, parser.JSON, parser.JSON},
-			input:     defaultObj,
-			outputPtr: defaultObjPtr,
+			input:     `{"data": "data"}`,
+			outputPtr: &objType{Data: "data"},
 		},
 		{
-			name:      "all-prs-input-nil",
+			name:      "all-prs-input-empty",
 			parsers:   parsers,
 			outputPtr: &struct{}{},
 		},
@@ -92,26 +94,20 @@ func TestAll(t *testing.T) {
 				return
 			}
 
-			// Marshal
-			input, err := parser.Marshal(tt.input)
-			assert.Equalf(t, tt.inputErr, err, "marshal error expected %v, got %v for %s", tt.inputErr, err, tt.name)
-			if tt.inputErr != nil {
-				return
-			}
-
-			// Unmarshal
+			// Parse
 			var output interface{}
 			if tt.outputPtr != nil {
 				output = reflect.New(reflect.TypeOf(tt.outputPtr).Elem()).Interface()
 			}
 
-			err = parser.Unmarshal(input, output)
-			assert.Equalf(t, tt.outputErr, err, "unmarshal error expected %v, got %v for %s", tt.outputErr, err, tt.name)
+			err = parser.Parse([]byte(tt.input), output)
+			assert.Equalf(t, tt.outputErr, err, "parse error expected %v, got %v for %s", tt.outputErr, err, tt.name)
 			if tt.outputErr != nil {
 				return
 			}
 
-			assert.Equalf(t, tt.outputPtr, output, "unmarshal result expected %v, got %v for %s", tt.outputPtr, output, tt.name)
+			assert.Equalf(t, tt.outputPtr, output, "parse result expected %v, got %v for %s", tt.outputPtr, output, tt.name)
 		})
 	}
+
 }

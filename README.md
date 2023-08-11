@@ -1,7 +1,8 @@
 # multiparser
 Serialize and deserialize different data types easily. 
 
-### Usage
+### Example usage
+Current example uses JSON and YAML multiparser.
 ```go
 package main
 
@@ -19,12 +20,11 @@ func main() {
 
     // Parse JSON
     var jsonObj object
-    _ = parser.Unmarshal([]byte(`{"data": "data"}`), &jsonObj)
-
-
+    _ = parser.Parse([]byte(`{"data": "data"}`), &jsonObj)
+	
     // Parse YAML
     var yamlObj object
-    _ = parser.Unmarshal([]byte(`data: data`), &yamlObj)
+    _ = parser.Parse([]byte(`data: data`), &yamlObj)
 }
 ```
 
@@ -37,13 +37,8 @@ All you have to do is implement `multiparser.Parser` interface, e.g.
 ```golang
 type parser struct {}
 
-// Marshal converts object to raw
-func (p *parser) Marshal(object interface{}) ([]byte, error) {
-    panic("implement me")
-}
-
-// Unmarshal converts raw to object
-func (p *parser) Unmarshal(from []byte, to interface{}) error {
+// Parse converts raw to object
+func (p *parser) Parse(from []byte, to interface{}) error {
     panic("implement me")
 }
 ```

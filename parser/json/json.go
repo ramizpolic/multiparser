@@ -9,10 +9,6 @@ var Parser multiparser.Parser = &jsonParser{}
 
 type jsonParser struct{}
 
-func (p *jsonParser) Marshal(object interface{}) ([]byte, error) {
-	return json.Marshal(object)
-}
-
-func (p *jsonParser) Unmarshal(from []byte, to interface{}) error {
+func (p *jsonParser) Parse(from []byte, to interface{}) error {
 	return json.Unmarshal(from, to)
 }
