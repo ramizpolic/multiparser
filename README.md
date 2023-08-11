@@ -1,7 +1,7 @@
 # multiparser
 Serialize and deserialize different data types easily. 
 
-### Quick usage
+### Usage
 ```go
 package main
 
