@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-type objType struct {
-	Data string `json:"data" yaml:"data"`
-}
-
 var parsers = []multiparser.Parser{
 	parser.JSON,
 	parser.YAML,
@@ -22,23 +18,23 @@ func TestParse(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		inputRaw string
-		expected objType
+		expected *map[string]string
 	}{
 		{
 			name:     "json",
 			inputRaw: `{"data": "data"}`,
-			expected: objType{Data: "data"},
+			expected: &map[string]string{"data": "data"},
 		},
 		{
 			name:     "yaml",
 			inputRaw: `data: data`,
-			expected: objType{Data: "data"},
+			expected: &map[string]string{"data": "data"},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			var got objType
+			var got map[string]string
 			_ = parser.Parse([]byte(tt.inputRaw), &got)
-			assert.Equal(t, tt.expected, got)
+			assert.Equal(t, *tt.expected, got)
 		})
 	}
 }
@@ -61,19 +57,19 @@ func TestAll(t *testing.T) {
 			name:      "all-prs-json",
 			parsers:   parsers,
 			input:     `{"data": "data"}`,
-			outputPtr: &objType{Data: "data"},
+			outputPtr: &map[string]string{"data": "data"},
 		},
 		{
 			name:      "all-prs-yaml",
 			parsers:   parsers,
 			input:     `data: data`,
-			outputPtr: &objType{Data: "data"},
+			outputPtr: &map[string]string{"data": "data"},
 		},
 		{
 			name:      "all-prs-duplicate",
 			parsers:   []multiparser.Parser{parser.JSON, parser.JSON, parser.JSON},
 			input:     `{"data": "data"}`,
-			outputPtr: &objType{Data: "data"},
+			outputPtr: &map[string]string{"data": "data"},
 		},
 		{
 			name:      "all-prs-input-empty",
