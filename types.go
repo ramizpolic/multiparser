@@ -8,7 +8,9 @@ type Unmarshaller interface {
 	Unmarshal(from []byte, to interface{}) error
 }
 
-type Converter interface {
+// Parser implements bidirectional parsing (from raw to object and vice versa).
+// TODO: consider using different name
+type Parser interface {
 	Marshaller
 	Unmarshaller
 }

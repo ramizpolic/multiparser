@@ -5,7 +5,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var Converter multiparser.Converter = &yamlParser{}
+var Parser multiparser.Parser = &yamlParser{}
 
 type yamlParser struct{}
 

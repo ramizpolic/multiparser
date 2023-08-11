@@ -7,34 +7,40 @@ import (
 )
 
 var (
+	ErrEmptyParsers  = errors.New("no Parser passed, at least one required")
 	ErrMarshal       = errors.New("no Marshaller could convert data")
 	ErrUnmarshal     = errors.New("no Unmarshaller could convert data")
-	ErrInvalidObject = errors.New("object must be an initialized pointer")
+	ErrInvalidObject = errors.New("object must be non-nil pointer")
 )
 
-type multiconverter struct {
-	converters []Converter
+type multiParser struct {
+	parsers []Parser
 }
 
-func New(converters ...Converter) Converter {
-	return &multiconverter{
-		converters: converters,
+// New creates a new Parser which can be used to serialize and deserialize
+// data with different formats.
+func New(parsers ...Parser) (Parser, error) {
+	if len(parsers) == 0 {
+		return nil, ErrEmptyParsers
 	}
+	return &multiParser{
+		parsers: parsers,
+	}, nil
 }
 
-func (m *multiconverter) Marshal(object interface{}) ([]byte, error) {
+func (m *multiParser) Marshal(object interface{}) ([]byte, error) {
 	mu := sync.Mutex{}
 	wg := sync.WaitGroup{}
 
 	// Try every Marshaller concurrently, if it succeeds, that's our result
 	var result []byte
-	for _, conv := range m.converters {
+	for _, parser := range m.parsers {
 		wg.Add(1)
-		go func(conv Converter) {
+		go func(parser Parser) {
 			defer wg.Done()
 
 			// Marshal
-			data, err := conv.Marshal(object)
+			data, err := parser.Marshal(object)
 			if err == nil {
 				mu.Lock()
 				if result == nil {
@@ -42,7 +48,7 @@ func (m *multiconverter) Marshal(object interface{}) ([]byte, error) {
 				}
 				mu.Unlock()
 			}
-		}(conv)
+		}(parser)
 	}
 
 	// Wait
@@ -55,7 +61,7 @@ func (m *multiconverter) Marshal(object interface{}) ([]byte, error) {
 	return result, nil
 }
 
-func (m *multiconverter) Unmarshal(from []byte, to interface{}) error {
+func (m *multiParser) Unmarshal(from []byte, to interface{}) error {
 	mu := sync.Mutex{}
 	wg := sync.WaitGroup{}
 
@@ -66,21 +72,21 @@ func (m *multiconverter) Unmarshal(from []byte, to interface{}) error {
 
 	// Try every Unmarshaller concurrently, if it succeeds, that's our result
 	var resultPtr interface{}
-	for _, conv := range m.converters {
+	for _, parser := range m.parsers {
 		wg.Add(1)
-		go func(conv Converter) {
+		go func(parser Parser) {
 			defer wg.Done()
 
 			// Unmarshal
 			fromPtr := reflect.New(reflect.TypeOf(to).Elem()).Interface()
-			if conv.Unmarshal(from, fromPtr) == nil {
+			if parser.Unmarshal(from, fromPtr) == nil {
 				mu.Lock()
 				if resultPtr == nil {
 					resultPtr = fromPtr
 				}
 				mu.Unlock()
 			}
-		}(conv)
+		}(parser)
 	}
 
 	// Wait

@@ -5,7 +5,7 @@ import (
 	"github.com/ramizpolic/multiparser"
 )
 
-var Converter multiparser.Converter = &jsonParser{}
+var Parser multiparser.Parser = &jsonParser{}
 
 type jsonParser struct{}
 
